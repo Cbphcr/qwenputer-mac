@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwenputer</title>
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e3e1da;
+  --accent: #2f5bd3; --chip: #b4561a; --chip-bg: #fbefe5; --circ: #1f7a4d; --circ-bg: #e7f4ec;
+  --code-bg: #f1f0eb; --err: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161614; --panel: #1f1f1c; --ink: #ecebe6; --muted: #9b9a93; --line: #34332f;
+    --accent: #7d9cff; --chip: #f0a36b; --chip-bg: #3a2a1d; --circ: #6fd3a0; --circ-bg: #1b3328;
+    --code-bg: #2a2a26; --err: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 12px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 99px;
+  color: var(--muted); background: var(--panel); }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+textarea { width: 100%; min-height: 70px; resize: vertical; border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px; font: inherit; background: var(--bg); color: var(--ink); }
+textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.row label { font-size: 13px; color: var(--muted); display: flex; gap: 5px; align-items: center; }
+button { font: inherit; font-size: 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); padding: 5px 12px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; margin-left: auto; }
+button:disabled { opacity: .5; cursor: default; }
+.ex { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.ex button { font-size: 12.5px; padding: 3px 10px; border-radius: 99px; color: var(--muted); }
+details { margin-top: 10px; }
+summary { cursor: pointer; font-size: 13px; color: var(--accent); }
+pre.prompt { white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Menlo, monospace;
+  background: var(--code-bg); padding: 10px; border-radius: 8px; max-height: 360px; overflow: auto; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin: 18px 0 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.turn { margin-top: 14px; }
+.user { font-weight: 600; margin-bottom: 8px; }
+.out { white-space: pre-wrap; word-break: break-word; }
+.out .c { background: var(--circ-bg); color: var(--circ); border-radius: 3px;
+  font-family: ui-monospace, Menlo, monospace; font-size: 13.5px; }
+.run { display: inline-flex; gap: 8px; align-items: center; margin: 2px 2px; padding: 1px 9px;
+  border-radius: 99px; background: var(--chip-bg); color: var(--chip); font-size: 12.5px;
+  font-family: ui-monospace, Menlo, monospace; vertical-align: 1px; white-space: nowrap; max-width: 100%; overflow: hidden; }
+.run .tail { opacity: .75; overflow: hidden; text-overflow: ellipsis; }
+.run.small { padding: 0; width: 6px; height: 6px; margin: 0 1px; vertical-align: 2px; background: var(--chip); opacity: .55; }
+.run.small > span { display: none; }
+.run.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--chip);
+  animation: pulse 0.8s infinite alternate; }
+@keyframes pulse { from { opacity: .25 } to { opacity: 1 } }
+.stats { margin-top: 10px; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+.stats b { color: var(--ink); font-weight: 600; }
+.err { color: var(--err); }
+.cursor::after { content: "▍"; color: var(--accent); animation: pulse .6s infinite alternate; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Qwenputer</h1>
+    <div class="tags" id="tags"></div>
+  </header>
+  <p class="sub">Qwen3.5-4B 的前 11 层是编译进权重的 RV32 CPU。模型写出 <code>&lt;tool_call&gt;</code> 后，固件在这些层里运行，算出 <code>calc</code> 的结果，再以文本 token 的形式回显。</p>
+
+  <div class="box">
+    <textarea id="msg">Use calc: what is 123456789 * 987654321?</textarea>
+    <div class="ex" id="ex"></div>
+    <div class="row">
+      <label><input type="checkbox" id="tools" checked> 系统提示词带 calc 工具</label>
+      <label><input type="checkbox" id="verify"> 结束后用 IR + 参考机重放校验</label>
+      <label>最多 <input type="number" id="maxnew" value="600" min="16" max="4000" style="width:64px"> 个文本 token</label>
+      <button class="primary" id="send">发送</button>
+    </div>
+    <details id="pd">
+      <summary>查看实际送入模型的完整提示词</summary>
+      <pre class="prompt" id="prompt">…</pre>
+    </details>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--ink)"></i>Qwen 写的文本</span>
+    <span><i style="background:var(--circ)"></i>电路给出的文本 token（工具结果回显等）</span>
+    <span><i style="background:var(--chip)"></i>芯片 token：RV32 在网络里运行，Qwen 的 32 层不参与（≤4 个的短段缩成小点，悬停看详情）</span>
+  </div>
+  <div id="log"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const EXAMPLES = [
+  "Use calc: what is 123456789 * 987654321?",
+  "Use calc: what is (2**100 - 12345678901234567890) // 97 + 84/18?",
+  "Use calc: what is gcd(1234567890123, 9876543210987)?",
+  "Use calc: what is 1.25 * -3.5 + 7/3?",
+  "What is 17 * 23?",
+];
+for (const e of EXAMPLES) {
+  const b = document.createElement("button");
+  b.textContent = e.length > 46 ? e.slice(0, 44) + "…" : e;
+  b.title = e;
+  b.onclick = () => { $("msg").value = e; refreshPrompt(); };
+  $("ex").appendChild(b);
+}
+fetch("/info").then(r => r.json()).then(c => {
+  const t = [`chip: ${c.chip}${c.chip === "circuit" ? "" : " · " + c.impl}`,
+             `Qwen: ${c.qwen_bits ? c.qwen_bits + "-bit" : "bf16"}`, `firmware: ${c.firmware}`];
+  $("tags").innerHTML = t.map(x => `<span class="tag">${x}</span>`).join("");
+});
+
+let ptimer;
+function refreshPrompt() {
+  clearTimeout(ptimer);
+  ptimer = setTimeout(async () => {
+    if (!$("pd").open) return;
+    const r = await fetch("/prompt", { method: "POST",
+      body: JSON.stringify({ message: $("msg").value, tools: $("tools").checked }) });
+    const p = await r.json();
+    $("prompt").textContent = `（${p.tokens} 个 token）\n\n` + p.text;
+  }, 200);
+}
+$("pd").addEventListener("toggle", refreshPrompt);
+$("msg").addEventListener("input", refreshPrompt);
+$("tools").addEventListener("change", refreshPrompt);
+$("msg").addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send();
+});
+$("send").onclick = send;
+
+const fmt = (n) => n.toLocaleString("en-US");
+
+async function send() {
+  const message = $("msg").value.trim();
+  if (!message) return;
+  $("send").disabled = true;
+  const turn = document.createElement("div");
+  turn.className = "box turn";
+  turn.innerHTML = `<div class="user"></div><div class="out cursor"></div><div class="stats">预填中…</div>`;
+  turn.querySelector(".user").textContent = message;
+  $("log").prepend(turn);
+  const out = turn.querySelector(".out"), stats = turn.querySelector(".stats");
+  let run = null, last = null, t0 = performance.now(), chipTotal = 0;
+
+  function text(s, owned) {
+    if (last && last.dataset.o === String(owned)) { last.textContent += s; return; }
+    last = document.createElement("span");
+    last.dataset.o = String(owned);
+    if (owned) last.className = "c";
+    last.textContent = s;
+    out.appendChild(last);
+  }
+  function onEvent(ev) {
+    if (ev.k === "start") stats.textContent = `提示词 ${fmt(ev.prompt_tokens)} 个 token，预填中…`;
+    else if (ev.k === "t") { run = null; text(ev.s, ev.o); stats.textContent = "生成中…"; }
+    else if (ev.k === "c") {
+      if (!run) {
+        run = document.createElement("span");
+        run.className = "run live";
+        run.innerHTML = `<span class="n"></span><span class="tail"></span>`;
+        out.appendChild(run);
+        last = null;
+      }
+      run.querySelector(".n").textContent = `⚙ RV32 · ${fmt(ev.n)} 个芯片 token`;
+      run.querySelector(".tail").textContent = ev.tail.join(" ");
+      run.title = "最后几个芯片 token：" + ev.tail.join(" ");
+      if (ev.end) {
+        run.classList.remove("live");
+        if (ev.n <= 4) run.classList.add("small");  // a putchar's few chip tokens: just a mark
+        chipTotal += ev.n; run = null;
+      }
+      stats.textContent = "RV32 运行中…";
+    } else if (ev.k === "done") {
+      out.classList.remove("cursor");
+      const ct = ev.chip_tokens / Math.max(ev.chip_seconds, 1e-9), tt = ev.text_tokens / Math.max(ev.text_seconds, 1e-9);
+      stats.innerHTML = `<b>${fmt(ev.text_tokens)}</b> 个文本 token + <b>${fmt(ev.chip_tokens)}</b> 个芯片 token，用时 <b>${ev.seconds.toFixed(1)} s</b>`
+        + `（预填 ${ev.prefill_seconds} s；文本 ${tt.toFixed(1)} tok/s，芯片 ${fmt(Math.round(ct))} tok/s）`
+        + ` · 参考机 lock：${ev.lock_error ? `<span class="err">${ev.lock_error}</span>` : "一致"}`
+        + ($("verify").checked ? " · 重放校验中…" : "");
+    } else if (ev.k === "verify") {
+      stats.innerHTML = stats.innerHTML.replace(" · 重放校验中…", "")
+        + ` · 重放：${ev.ok ? "通过" : `<span class="err">未通过</span>`}（${fmt(ev.positions)} 个位置，电路负责 ${fmt(ev.owned)} 个，错误预测 ${ev.wrong_predictions}）`;
+    } else if (ev.k === "error") {
+      out.classList.remove("cursor");
+      stats.innerHTML = `<span class="err">${ev.error}</span>`;
+    }
+  }
+  try {
+    const r = await fetch("/chat", { method: "POST", body: JSON.stringify({
+      message, tools: $("tools").checked, verify: $("verify").checked, max_new: +$("maxnew").value }) });
+    if (!r.ok) { const j = await r.json(); onEvent({ k: "error", error: j.error }); return; }
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (line.startsWith("data: ")) onEvent(JSON.parse(line.slice(6)));
+      }
+    }
+  } catch (e) { onEvent({ k: "error", error: String(e) }); }
+  finally { out.classList.remove("cursor"); $("send").disabled = false; }
+}
+</script>
+</body>
+</html>

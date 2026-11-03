@@ -1,0 +1,27 @@
+diff --git a/experimental/riscv/chipformer/q35/fast.py b/experimental/riscv/chipformer/q35/fast.py
+index f16d71a..698981d 100644
+--- a/experimental/riscv/chipformer/q35/fast.py
++++ b/experimental/riscv/chipformer/q35/fast.py
+@@ -169,7 +169,8 @@ def compact(model, qwen: bool | str = True, n_chip: int | None = None) -> dict:
+         if w.data_ptr() == emb.data_ptr():
+             lm.embed_tokens = SparseEmbedding(block, c0, w.shape[1])
+         model.lm_head = SparseLinear(w, rows=(0, w.shape[0]), cols=(c0, c1), block=block)
+-    torch.cuda.empty_cache()
++    if torch.cuda.is_available():
++        torch.cuda.empty_cache()
+     return {"dense_weights": before, "compact_weights": after, "chip_deltanet_heads": heads}
+ 
+ 
+diff --git a/experimental/riscv/chipformer/rv/fastexec.py b/experimental/riscv/chipformer/rv/fastexec.py
+index 26c82f1..392e166 100644
+--- a/experimental/riscv/chipformer/rv/fastexec.py
++++ b/experimental/riscv/chipformer/rv/fastexec.py
+@@ -227,7 +227,7 @@ def check(c, toks, device="cpu", sparse=False) -> int:
+     emb = ex.embed(toks)
+     want = ir.evaluate(c, toks, check=False)
+     for t in range(len(toks)):
+-        got = ex.step(emb[t:t + 1])[0].double().cpu().numpy()
++        got = ex.step(emb[t:t + 1])[0].cpu().double().numpy()
+         bad = np.nonzero(got != want[t])[0]
+         assert not len(bad), (t, [(c.dims[d].name, got[d], want[t, d]) for d in bad[:5]])
+     return len(toks)
